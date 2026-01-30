@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Billager",
+    "slug": "billager",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.billager.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Billager trenger tilgang til kameraet for å ta bilder av biler til salgs.",
+        "NSPhotoLibraryUsageDescription": "Billager trenger tilgang til bildebiblioteket for å lagre bilder av biler.",
+        "NSPhotoLibraryAddUsageDescription": "Billager trenger tilgang til å lagre bilder i bildebiblioteket ditt."
+      }
+    },
+    "android": {
+      "package": "com.billager.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES"
+      
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

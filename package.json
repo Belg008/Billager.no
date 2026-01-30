@@ -1,0 +1,29 @@
+{
+  "name": "billager",
+  "version": "1.0.0",
+  "main": "expo/AppEntry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-navigation/native": "^6.1.18",
+    "@react-navigation/stack": "^6.3.16",
+    "expo": "~54.0.31",
+    "expo-camera": "~17.0.10",
+    "expo-image-picker": "^17.0.10",
+    "expo-media-library": "^18.2.1",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "^2.12.0",
+    "react-native-reanimated": "^3.4.0",
+    "react-native-safe-area-context": "^4.5.0",
+    "react-native-screens": "^3.20.0",
+    "react-native-vector-icons": "^10.3.0"
+  },
+  "private": true
+}
