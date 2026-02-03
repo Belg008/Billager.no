@@ -398,6 +398,7 @@ export default function App() {
     return (
       <CarDetailsScreen
         car={selectedCar}
+        user={user}
         onBack={() => {
           setScreen('home');
           setSelectedCar(null);
@@ -406,6 +407,10 @@ export default function App() {
         onDelete={() => deleteCar(selectedCar.id)}
       />
     );
+  }
+
+  if (screen === 'admin' && user?.is_admin) {
+    return <AdminPanel user={user} onBack={() => setScreen('home')} />;
   }
 
   return (
@@ -423,12 +428,22 @@ export default function App() {
         onCarPress={handleCarPress}
         onAddCar={() => setScreen('add')}
       />
-      <TouchableOpacity 
-        style={styles.signOutButton}
-        onPress={handleSignOut}
-      >
-        <Text style={styles.signOutButtonText}>Sign Out</Text>
-      </TouchableOpacity>
+      <View style={styles.bottomButtons}>
+        {user?.is_admin && (
+          <TouchableOpacity 
+            style={styles.adminButton}
+            onPress={() => setScreen('admin')}
+          >
+            <Text style={styles.adminButtonText}>🔒 Admin Panel</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity 
+          style={styles.signOutButton}
+          onPress={handleSignOut}
+        >
+          <Text style={styles.signOutButtonText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -1145,8 +1160,11 @@ function EditCarScreen({ car, onBack, onSave }) {
   );
 }
 
-function CarDetailsScreen({ car, onBack, onEdit, onDelete }) {
+function CarDetailsScreen({ car, user, onBack, onEdit, onDelete }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Check if current user owns this car or is admin
+  const canEdit = user && (car.user_id === user.id || user.is_admin);
 
   const handleScroll = useCallback((e) => {
     const index = Math.round(e.nativeEvent.contentOffset.x / width);
@@ -1290,16 +1308,198 @@ function CarDetailsScreen({ car, onBack, onEdit, onDelete }) {
             )}
           </View>
 
-          <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.editButton} onPress={onEdit}>
-              <Text style={styles.editButtonText}>✏️ Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
-              <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
-            </TouchableOpacity>
-          </View>
+          {canEdit && (
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.editButton} onPress={onEdit}>
+                <Text style={styles.editButtonText}>✏️ Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
+                <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function AdminPanel({ user, onBack }) {
+  const [users, setUsers] = useState([]);
+  const [cars, setCars] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('users');
+
+  useEffect(() => {
+    loadData();
+  }, [activeTab]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      if (activeTab === 'users') {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!error) setUsers(data || []);
+      } else {
+        const { data, error } = await supabase
+          .from('cars')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!error) setCars(data || []);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Could not load data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    if (userId === user.id) {
+      Alert.alert('Error', 'You cannot delete your own account');
+      return;
+    }
+    
+    Alert.alert(
+      'Delete User',
+      'Are you sure? This will delete the user and all their cars.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('users')
+                .delete()
+                .eq('id', userId);
+              
+              if (error) {
+                Alert.alert('Error', error.message);
+              } else {
+                loadData();
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Could not delete user');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const deleteCar = async (carId) => {
+    Alert.alert(
+      'Delete Car',
+      'Are you sure you want to delete this car?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('cars')
+                .delete()
+                .eq('id', carId);
+              
+              if (error) {
+                Alert.alert('Error', error.message);
+              } else {
+                loadData();
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Could not delete car');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>🔒 Admin Panel</Text>
+        <View style={{ width: 80 }} />
+      </View>
+
+      <View style={styles.adminTabs}>
+        <TouchableOpacity 
+          style={[styles.adminTab, activeTab === 'users' && styles.adminTabActive]}
+          onPress={() => setActiveTab('users')}
+        >
+          <Text style={[styles.adminTabText, activeTab === 'users' && styles.adminTabTextActive]}>
+            Users ({users.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.adminTab, activeTab === 'cars' && styles.adminTabActive]}
+          onPress={() => setActiveTab('cars')}
+        >
+          <Text style={[styles.adminTabText, activeTab === 'cars' && styles.adminTabTextActive]}>
+            Cars ({cars.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {loading ? (
+        <View style={styles.adminLoading}>
+          <Text>Loading...</Text>
+        </View>
+      ) : (
+        <ScrollView style={styles.adminContent}>
+          {activeTab === 'users' ? (
+            users.map((u) => (
+              <View key={u.id} style={styles.adminCard}>
+                <View style={styles.adminCardHeader}>
+                  <Text style={styles.adminCardTitle}>{u.username}</Text>
+                  {u.is_admin && <Text style={styles.adminBadge}>ADMIN</Text>}
+                </View>
+                <Text style={styles.adminCardText}>Email: {u.email}</Text>
+                <Text style={styles.adminCardText}>Phone: {u.phone}</Text>
+                <Text style={styles.adminCardText}>
+                  Joined: {new Date(u.created_at).toLocaleDateString()}
+                </Text>
+                {!u.is_admin && (
+                  <TouchableOpacity 
+                    style={styles.adminDeleteButton}
+                    onPress={() => deleteUser(u.id)}
+                  >
+                    <Text style={styles.adminDeleteButtonText}>🗑️ Delete User</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))
+          ) : (
+            cars.map((car) => (
+              <View key={car.id} style={styles.adminCard}>
+                <Text style={styles.adminCardTitle}>{car.brand} {car.model}</Text>
+                <Text style={styles.adminCardText}>Year: {car.year}</Text>
+                <Text style={styles.adminCardText}>Price: {parseInt(car.price || 0).toLocaleString('nb-NO')} kr</Text>
+                <Text style={styles.adminCardText}>User ID: {car.user_id}</Text>
+                <Text style={styles.adminCardText}>
+                  Posted: {new Date(car.created_at).toLocaleDateString()}
+                </Text>
+                <TouchableOpacity 
+                  style={styles.adminDeleteButton}
+                  onPress={() => deleteCar(car.id)}
+                >
+                  <Text style={styles.adminDeleteButtonText}>🗑️ Delete Car</Text>
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -1918,10 +2118,110 @@ const styles = StyleSheet.create({
     margin: 16,
     borderRadius: 8,
     alignItems: 'center',
+    flex: 1,
   },
   signOutButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  bottomButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  adminButton: {
+    backgroundColor: '#5856D6',
+    padding: 12,
+    margin: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    flex: 1,
+  },
+  adminButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  adminTabs: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  adminTab: {
+    flex: 1,
+    padding: 16,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  adminTabActive: {
+    borderBottomColor: '#5856D6',
+  },
+  adminTabText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  adminTabTextActive: {
+    color: '#5856D6',
+    fontWeight: '700',
+  },
+  adminContent: {
+    flex: 1,
+    padding: 16,
+  },
+  adminLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  adminCard: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  adminCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  adminCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  adminCardText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  adminBadge: {
+    backgroundColor: '#5856D6',
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  adminDeleteButton: {
+    backgroundColor: '#FF3B30',
+    padding: 10,
+    borderRadius: 6,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  adminDeleteButtonText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '600',
   },
 });
