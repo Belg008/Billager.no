@@ -23,6 +23,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { supabase } from './supabase-client';
 
 const STORAGE_KEY = '@billager_cars';
 const { width, height } = Dimensions.get('window');
@@ -34,53 +35,105 @@ export default function App() {
   const [selectedCar, setSelectedCar] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('date');
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const loadCars = useCallback(async () => {
+    if (!user) return;
+    
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setCars(JSON.parse(stored));
+      const { data, error } = await supabase
+        .from('cars')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading cars:', error);
+        Alert.alert('Error', 'Could not load cars: ' + error.message);
+      } else {
+        setCars(data || []);
       }
     } catch (error) {
       console.error('Error loading cars:', error);
+      Alert.alert('Error', 'Could not load cars');
     }
+  }, [user]);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('@user');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (error) {
+        console.error('Error loading user:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadUser();
   }, []);
 
   useEffect(() => {
-    loadCars();
-  }, [loadCars]);
-
-  const saveCars = useCallback(async (newCars) => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newCars));
-      setCars(newCars);
-    } catch (error) {
-      console.error('Error saving cars:', error);
-      Alert.alert('Error', 'Could not save car');
+    if (user) {
+      loadCars();
     }
-  }, []);
+  }, [user, loadCars]);
+
+
 
   const addCar = useCallback(async (carData) => {
-    const newCar = {
-      id: Date.now().toString(),
-      ...carData,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    const updatedCars = [newCar, ...cars];
-    await saveCars(updatedCars);
-    setScreen('home');
-  }, [cars, saveCars]);
+    try {
+      const { data, error } = await supabase
+        .from('cars')
+        .insert([{
+          user_id: user.id,
+          brand: carData.brand,
+          model: carData.model,
+          year: carData.year,
+          km: carData.km,
+          price: carData.price,
+          images: carData.images || [],
+        }])
+        .select();
+      
+      if (error) {
+        Alert.alert('Error', 'Could not save car: ' + error.message);
+      } else {
+        await loadCars();
+        setScreen('home');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Could not save car');
+    }
+  }, [user, loadCars]);
 
   const updateCar = useCallback(async (carId, carData) => {
-    const updatedCars = cars.map((car) =>
-      car.id === carId
-        ? { ...car, ...carData, updatedAt: new Date().toISOString() }
-        : car
-    );
-    await saveCars(updatedCars);
-    setScreen('home');
-  }, [cars, saveCars]);
+    try {
+      const { error } = await supabase
+        .from('cars')
+        .update({
+          brand: carData.brand,
+          model: carData.model,
+          year: carData.year,
+          km: carData.km,
+          price: carData.price,
+          images: carData.images || [],
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', carId);
+      
+      if (error) {
+        Alert.alert('Error', 'Could not update car: ' + error.message);
+      } else {
+        await loadCars();
+        setScreen('home');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Could not update car');
+    }
+  }, [loadCars]);
 
   const deleteCar = useCallback(async (carId) => {
     Alert.alert(
@@ -92,15 +145,27 @@ export default function App() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            const updatedCars = cars.filter((car) => car.id !== carId);
-            await saveCars(updatedCars);
-            setScreen('home');
-            setSelectedCar(null);
+            try {
+              const { error } = await supabase
+                .from('cars')
+                .delete()
+                .eq('id', carId);
+              
+              if (error) {
+                Alert.alert('Error', 'Could not delete car: ' + error.message);
+              } else {
+                await loadCars();
+                setScreen('home');
+                setSelectedCar(null);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Could not delete car');
+            }
           },
         },
       ]
     );
-  }, [cars, saveCars]);
+  }, [loadCars]);
 
   const filteredAndSortedCars = useMemo(() => {
     let filtered = cars.filter((car) => {
@@ -130,64 +195,190 @@ export default function App() {
     setScreen('details');
   }, []);
 
-  const LoginScreen = ({ navigation }) => {
-    const [username, setUsername] = useState('');
+  const AuthScreen = () => {
+    const [isLogin, setIsLogin] = useState(true);
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [username, setUsername] = useState('');
+    const [phone, setPhone] = useState('');
+    const [authLoading, setAuthLoading] = useState(false);
 
-    const handleLogin = () => {
-      // Placeholder login logic
-      if (username && password) {
-        navigation.navigate('Search');
-      } else {
-        alert('Please enter valid credentials');
+    const handleSignUp = async () => {
+      if (!email || !password || !username || !phone) {
+        Alert.alert('Error', 'Please fill all fields');
+        return;
+      }
+      if (password.length < 6) {
+        Alert.alert('Error', 'Password must be at least 6 characters');
+        return;
+      }
+      
+      setAuthLoading(true);
+      try {
+        // Check if email already exists
+        const { data: existingUsers } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email.trim());
+        
+        if (existingUsers && existingUsers.length > 0) {
+          Alert.alert('Error', 'Email already registered. Please sign in.');
+          setIsLogin(true);
+          setAuthLoading(false);
+          return;
+        }
+
+        // Insert new user
+        const { data, error } = await supabase
+          .from('users')
+          .insert([{
+            username: username.trim(),
+            email: email.trim(),
+            password: password,
+            phone: parseInt(phone),
+          }])
+          .select();
+        
+        if (error) {
+          Alert.alert('Sign Up Error', error.message);
+        } else if (data && data.length > 0) {
+          Alert.alert('Success', 'Account created! You can now sign in.');
+          setIsLogin(true);
+          setUsername('');
+          setPhone('');
+        }
+      } catch (error) {
+        Alert.alert('Error', error.message);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    const handleSignIn = async () => {
+      if (!email || !password) {
+        Alert.alert('Error', 'Please enter email and password');
+        return;
+      }
+      
+      setAuthLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', email.trim())
+          .eq('password', password)
+          .single();
+        
+        if (error || !data) {
+          Alert.alert('Login Error', 'Invalid email or password');
+        } else {
+          // Save user to AsyncStorage
+          await AsyncStorage.setItem('@user', JSON.stringify(data));
+          setUser(data);
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Login failed');
+      } finally {
+        setAuthLoading(false);
       }
     };
 
     return (
-      <View style={styles.container}>
-        <Text>Login</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Username"
-          value={username}
-          onChangeText={setUsername}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        <Button title="Login" onPress={handleLogin} />
-      </View>
+      <SafeAreaView style={styles.container}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.authContainer}
+        >
+          <View style={styles.authContent}>
+            <Text style={styles.authTitle}>Billager</Text>
+            <Text style={styles.authSubtitle}>
+              {isLogin ? 'Sign in to your account' : 'Create a new account'}
+            </Text>
+            
+            {!isLogin && (
+              <>
+                <TextInput
+                  style={styles.authInput}
+                  placeholder="Username"
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="words"
+                  placeholderTextColor="#999"
+                />
+                <TextInput
+                  style={styles.authInput}
+                  placeholder="Phone"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="numeric"
+                  placeholderTextColor="#999"
+                />
+              </>
+            )}
+            
+            <TextInput
+              style={styles.authInput}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholderTextColor="#999"
+            />
+            <TextInput
+              style={styles.authInput}
+              placeholder="Password"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              placeholderTextColor="#999"
+            />
+            
+            <TouchableOpacity 
+              style={[styles.authButton, authLoading && styles.authButtonDisabled]}
+              onPress={isLogin ? handleSignIn : handleSignUp}
+              disabled={authLoading}
+            >
+              <Text style={styles.authButtonText}>
+                {authLoading ? 'Loading...' : (isLogin ? 'Sign In' : 'Sign Up')}
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.authSwitchButton}
+              onPress={() => setIsLogin(!isLogin)}
+            >
+              <Text style={styles.authSwitchText}>
+                {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Sign In'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     );
   };
 
-  const SearchScreen = () => {
-    const [filters, setFilters] = useState({ keyword: '', category: '' });
+  const handleSignOut = async () => {
+    try {
+      await AsyncStorage.removeItem('@user');
+      setUser(null);
+      setCars([]);
+    } catch (error) {
+      Alert.alert('Error', 'Could not sign out');
+    }
+  };
 
+  if (loading) {
     return (
-      <View style={styles.container}>
-        <Text>Search</Text>
-        <View style={styles.filterMenu}>
-          <TextInput
-            style={styles.input}
-            placeholder="Keyword"
-            value={filters.keyword}
-            onChangeText={(text) => setFilters({ ...filters, keyword: text })}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Category"
-            value={filters.category}
-            onChangeText={(text) => setFilters({ ...filters, category: text })}
-          />
-        </View>
-        <Button title="Search" onPress={() => alert('Search triggered')} />
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
-  };
+  }
+
+  if (!user) {
+    return <AuthScreen />;
+  }
 
   if (screen === 'add') {
     return <AddCarScreen onBack={() => setScreen('home')} onSave={addCar} />;
@@ -218,12 +409,27 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Login">
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Search" component={SearchScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      <Header cars={filteredAndSortedCars} />
+      <SearchAndSort 
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+      />
+      <CarList 
+        cars={filteredAndSortedCars}
+        onCarPress={handleCarPress}
+        onAddCar={() => setScreen('add')}
+      />
+      <TouchableOpacity 
+        style={styles.signOutButton}
+        onPress={handleSignOut}
+      >
+        <Text style={styles.signOutButtonText}>Sign Out</Text>
+      </TouchableOpacity>
+    </SafeAreaView>
   );
 }
 
@@ -1635,5 +1841,87 @@ const styles = StyleSheet.create({
   },
   filterMenu: {
     marginBottom: 16,
+  },
+  authContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: '#f5f5f5',
+  },
+  authContent: {
+    backgroundColor: '#fff',
+    padding: 24,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  authTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+    color: '#333',
+  },
+  authSubtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
+    color: '#666',
+  },
+  authInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 12,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+  },
+  authButton: {
+    backgroundColor: '#007AFF',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+    elevation: 2,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+  },
+  authButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  authButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  authSwitchButton: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  authSwitchText: {
+    color: '#007AFF',
+    fontSize: 14,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#666',
+  },
+  signOutButton: {
+    backgroundColor: '#FF3B30',
+    padding: 12,
+    margin: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  signOutButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
