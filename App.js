@@ -471,7 +471,7 @@ const CarCard = React.memo(({ car, onPress }) => {
 const Header = React.memo(({ cars }) => {
   return (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>🚗 Billager</Text>
+      <Text style={styles.headerTitle}> Billager</Text>
       <Text style={styles.headerSubtitle}>{cars.length} cars for sale</Text>
     </View>
   );
@@ -712,10 +712,10 @@ function AddCarScreen({ onBack, onSave }) {
               ))}
               <View style={styles.addImageButtons}>
                 <TouchableOpacity style={styles.addImageButton} onPress={openCamera}>
-                  <Text style={styles.addImageText}>📷 Take Photo</Text>
+                  <Text style={styles.addImageText}>Take Photo</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
-                  <Text style={styles.addImageText}>🖼️ Choose Photos</Text>
+                  <Text style={styles.addImageText}>Choose Photos</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -1022,10 +1022,10 @@ function EditCarScreen({ car, onBack, onSave }) {
               ))}
               <View style={styles.addImageButtons}>
                 <TouchableOpacity style={styles.addImageButton} onPress={openCamera}>
-                  <Text style={styles.addImageText}>📷 Take Photo</Text>
+                  <Text style={styles.addImageText}>Take Photo</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
-                  <Text style={styles.addImageText}>🖼️ Choose Photos</Text>
+                  <Text style={styles.addImageText}>Choose Photos</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -1299,11 +1299,11 @@ function CarDetailsScreen({ car, user, onBack, onEdit, onDelete }) {
 
           <View style={styles.contactButtonsRow}>
             <TouchableOpacity style={styles.callButton} onPress={handleCallOwner}>
-              <Text style={styles.callButtonText}>📞 Call</Text>
+              <Text style={styles.callButtonText}>Call</Text>
             </TouchableOpacity>
             {car.ownerEmail && (
               <TouchableOpacity style={styles.emailButton} onPress={handleEmailOwner}>
-                <Text style={styles.emailButtonText}>✉️ Email</Text>
+                <Text style={styles.emailButtonText}>Email</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1311,10 +1311,10 @@ function CarDetailsScreen({ car, user, onBack, onEdit, onDelete }) {
           {canEdit && (
             <View style={styles.actionButtons}>
               <TouchableOpacity style={styles.editButton} onPress={onEdit}>
-                <Text style={styles.editButtonText}>✏️ Edit</Text>
+                <Text style={styles.editButtonText}>Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
-                <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
+                <Text style={styles.deleteButtonText}>Delete</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1428,7 +1428,7 @@ function AdminPanel({ user, onBack }) {
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🔒 Admin Panel</Text>
+        <Text style={styles.headerTitle}>!Admin Panel!</Text>
         <View style={{ width: 80 }} />
       </View>
 
@@ -1474,7 +1474,7 @@ function AdminPanel({ user, onBack }) {
                     style={styles.adminDeleteButton}
                     onPress={() => deleteUser(u.id)}
                   >
-                    <Text style={styles.adminDeleteButtonText}>🗑️ Delete User</Text>
+                    <Text style={styles.adminDeleteButtonText}>Delete User</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -1493,7 +1493,7 @@ function AdminPanel({ user, onBack }) {
                   style={styles.adminDeleteButton}
                   onPress={() => deleteCar(car.id)}
                 >
-                  <Text style={styles.adminDeleteButtonText}>🗑️ Delete Car</Text>
+                  <Text style={styles.adminDeleteButtonText}>Delete Car</Text>
                 </TouchableOpacity>
               </View>
             ))
